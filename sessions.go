@@ -13,8 +13,20 @@ type SessionInfo struct {
 }
 
 type PromptInfo struct {
+	PromptTemplateID        string `json:"prompt_template_id"`
 	PromptTemplateVersionID string `json:"prompt_template_version_id"`
+	PromptTemplateName      string `json:"prompt_template_name"`
 	Environment             string `json:"environment"`
+	ModelParameters         struct {
+		ResponseFormat string  `json:"response_format"`
+		Temperature    float64 `json:"temperature"`
+		TopP           float64 `json:"top_p"`
+	}
+	ProviderInfo map[string]string `json:"provider_info"`
+	Provider     string            `json:"provider"`
+	Model        string            `json:"model"`
+	FlavorName   string            `json:"flavor_name"`
+	ProjectID    string            `json:"project_id"`
 }
 
 type CallInfo struct {
@@ -44,7 +56,6 @@ type CompletionResponse struct {
 	CompletionID string `json:"completion_id"`
 }
 
-// https://dev.freeplay.ai/api/v2/projects/8f93dd00-2eb5-4ba2-9354-86d5c6831dfd/sessions/f503c15e-2f0f-4ce4-b443-4c87d0b6435d/completions
 func (c *Client) RecordCompletion(
 	projectID string,
 	sessionID string,
@@ -77,4 +88,37 @@ func (c *Client) RecordCompletion(
 	}
 
 	return &result, nil
+}
+
+type TracePayload struct {
+	Input  string `json:"input"`
+	Output string `json:"output"`
+}
+
+func (c *Client) RecordTrace(
+	projectID string,
+	sessionID string,
+	traceID string,
+	payload *TracePayload,
+) error {
+	apiURL, err := url.Parse(c.apiHost)
+	if err != nil {
+		return fmt.Errorf("failed to parse API URL: %v", err)
+	}
+	apiURL.Path = path.Join(c.apiBasePath, "projects", projectID, "sessions", sessionID, "traces/id", traceID)
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal data: %v", err)
+	}
+
+	c.Debug("POST %s\n", apiURL.String())
+	c.Debug("body:\n%s\n", string(body))
+
+	_, err = c.AuthPost(apiURL.String(), bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to record completion: %v", err)
+	}
+
+	return nil
 }

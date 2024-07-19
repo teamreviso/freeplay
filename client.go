@@ -1,6 +1,7 @@
 package freeplay
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ type Client struct {
 
 	httpClient *http.Client
 	debug      bool
+	logfile    *os.File
 }
 
 type ClientOption func(*Client)
@@ -46,6 +48,12 @@ func WithAPIURL(host, basePath string) ClientOption {
 func WithDebug() ClientOption {
 	return func(c *Client) {
 		c.debug = true
+	}
+}
+
+func WithLogFile(file *os.File) ClientOption {
+	return func(c *Client) {
+		c.logfile = file
 	}
 }
 
@@ -93,18 +101,65 @@ func (c *Client) AuthDo(verb, url string, body io.Reader) (*http.Response, error
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	c.Debug("req: %v", req)
+	if c.debug {
+		bodyBytes, err := io.ReadAll(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read body: %v", err)
+		}
+
+		bodyReader := bytes.NewReader(bodyBytes)
+		req.Body = io.NopCloser(bodyReader)
+
+		requestLog := fmt.Sprintf("Request: %s %s\nHeaders: %v\nBody: %s\n\n", req.Method, req.URL, req.Header, bodyBytes)
+		c.logToFile(requestLog)
+		c.Debug("req: %v", req)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 
-	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
-		return resp, nil
+	if c.debug {
+		defer resp.Body.Close()
+
+		var buf bytes.Buffer
+		tee := io.TeeReader(resp.Body, &buf)
+
+		result, err := io.ReadAll(tee)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %v", err)
+		}
+
+		reponseLog := fmt.Sprintf("Response: %d %s\nHeaders: %v\nBody: %s\n\n", resp.StatusCode, resp.Status, resp.Header, result)
+		c.logToFile(reponseLog)
+		c.Debug("response: %v", req)
+
+		resp.Body = io.NopCloser(&buf)
 	}
 
-	defer resp.Body.Close()
-	result, _ := io.ReadAll(resp.Body)
-	return nil, fmt.Errorf("unexpected status code: %d\n\n%s", resp.StatusCode, string(result))
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		defer resp.Body.Close()
+		result, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d\n\n%s", resp.StatusCode, string(result))
+	}
+
+	return resp, nil
+}
+
+func (c *Client) logToFile(logText string) {
+	if c.logfile == nil {
+		return
+	}
+	_, err := c.logfile.WriteString(logText)
+	if err != nil {
+		fmt.Println("Error writing to file:", err)
+		return
+	}
+
+	err = c.logfile.Sync()
+	if err != nil {
+		fmt.Println("Error syncing file:", err)
+		return
+	}
 }

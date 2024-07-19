@@ -8,14 +8,31 @@ import (
 	"path"
 )
 
+type Prompt struct {
+	FormatVersion           int       `json:"format_version"`
+	FormattedContent        []Message `json:"formatted_content"`
+	Content                 []Message `json:"content"`
+	Metadata                Metadata  `json:"metadata"`
+	PromptTemplateID        string    `json:"prompt_template_id"`
+	PromptTemplateName      string    `json:"prompt_template_name"`
+	PromptTemplateVersionID string    `json:"prompt_template_version_id"`
+	SystemContent           *string   `json:"system_content"`
+}
+
 type Message struct {
 	Content string `json:"content"`
 	Role    string `json:"role"`
 }
 
 type MetadataParams struct {
-	MaxTokens   int     `json:"max_tokens"`
-	Temperature float64 `json:"temperature"`
+	ResponseFormat ResponseFormat `json:"response_format"`
+	MaxTokens      int            `json:"max_tokens"`
+	Temperature    float64        `json:"temperature"`
+	TopP           float64        `json:"top_p"`
+}
+
+type ResponseFormat struct {
+	Type string `json:"type"`
 }
 
 type Metadata struct {
@@ -24,17 +41,6 @@ type Metadata struct {
 	Params       MetadataParams    `json:"params"`
 	Provider     string            `json:"provider"`
 	ProviderInfo map[string]string `json:"provider_info"`
-}
-
-type Prompt struct {
-	Content                 []Message `json:"content"`
-	FormatVersion           int       `json:"format_version"`
-	FormattedContent        []Message `json:"formatted_content"`
-	Metadata                Metadata  `json:"metadata"`
-	PromptTemplateID        string    `json:"prompt_template_id"`
-	PromptTemplateName      string    `json:"prompt_template_name"`
-	PromptTemplateVersionID string    `json:"prompt_template_version_id"`
-	SystemContent           *string   `json:"system_content"`
 }
 
 type GetPromptParams struct {

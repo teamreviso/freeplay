@@ -103,7 +103,9 @@ func (c *Client) GetPrompt(
 	if environment != "" {
 		urlParams.Add("environment", environment)
 	}
-	urlParams.Add("format", "true")
+	if formatted {
+		urlParams.Add("format", "true")
+	}
 	apiURL.RawQuery = urlParams.Encode()
 
 	body, err := json.Marshal(data)
